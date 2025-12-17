@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RipCoffee Admin Login</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- Core Variables --- */
+        :root {
+            --bg-body: #121212;
+            --bg-panel: #1e1e1e;
+            --accent: #d4af37; /* Gold */
+            --accent-hover: #b5952f;
+            --text-main: #e0e0e0;
+            --border: #333333;
+            --danger: #ff4444;
+            --success: #00c851;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-serif: "Playfair Display", serif;
+        }
+
+        /* --- Global Reset & Body Style --- */
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* --- Keyframes Animations --- */
+        
+        /* 1. Shake Animation (Error) */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-10px); }
+            40%, 80% { transform: translateX(10px); }
+        }
+        .anim-shake { animation: shake 0.5s ease-in-out; }
+
+        /* 2. Success Pop/Pulse Animation */
+        @keyframes popPulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 rgba(212, 175, 55, 0.5); }
+            50% { transform: scale(1.02); box-shadow: 0 0 20px rgba(212, 175, 55, 0.8); }
+            100% { transform: scale(1); box-shadow: 0 0 0 rgba(212, 175, 55, 0); }
+        }
+
+        /* 3. Fade In & Slide Up */
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- Login Box Style --- */
+        .login-container {
+            width: 90%;
+            max-width: 380px;
+            background: var(--bg-panel);
+            padding: 2.5rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            border: 1px solid var(--border);
+            animation: slideIn 0.8s ease forwards;
+        }
+
+        /* --- Header & Logo --- */
+        .logo { 
+            font-family: var(--font-serif); 
+            font-size: 2.5rem; 
+            color: var(--accent); 
+            text-align: center;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .subtitle {
+            text-align: center;
+            color: var(--text-main);
+            margin-bottom: 2rem;
+            font-size: 1rem;
+        }
+
+        /* --- Form Elements --- */
+        .input-group {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        .input-group i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            transition: color 0.3s;
+        }
+
+        .login-input {
+            width: 100%;
+            padding: 1rem 1rem 1rem 45px; /* Padding kiri disesuaikan untuk icon */
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .login-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+        }
+        .login-input:focus + i {
+            color: var(--accent);
+        }
+
+        /* --- Button --- */
+        .btn-login {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            background: var(--accent);
+            color: #000;
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 1rem;
+        }
+        .btn-login:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(212, 175, 55, 0.4);
+        }
+        .btn-login:active {
+            transform: scale(0.98);
+        }
+
+        /* --- Message Box --- */
+        .message-box {
+            height: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            margin-top: -0.5rem;
+            margin-bottom: 1rem;
+        }
+        .message-box.error { color: var(--danger); animation: fadeIn 0.3s; }
+        .message-box.success { color: var(--success); animation: popPulse 0.5s; }
+
+        /* [NEW] Success Modal Styling (Untuk animasi sukses) */
+        #success-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.4s; z-index: 1000;
+        }
+        #success-overlay.active { opacity: 1; pointer-events: all; }
+
+        .success-box {
+            background: var(--bg-panel); padding: 3rem; border-radius: 20px;
+            text-align: center; border: 2px solid var(--accent);
+            transform: scale(0.5); opacity: 0;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes popIn { 
+            0% { transform: scale(0.5); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .success-box i {
+            font-size: 3rem; color: var(--accent); margin-bottom: 1rem;
+        }
+        .success-box h3 {
+            font-family: var(--font-serif); font-size: 1.8rem;
+        }
+        .success-box p {
+            color: var(--text-muted); margin-top: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-container" id="login-form-container">
+        <h1 class="logo">RipeCoffee.</h1>
+        <p class="subtitle">cashire login</p>
+
+        <form id="admin-login-form">
+            <div class="input-group">
+                <input type="text" id="username" class="login-input" placeholder="Username" required autocomplete="off">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            
+            <div class="input-group">
+                <input type="password" id="password" class="login-input" placeholder="Password" required>
+                <i class="fas fa-lock"></i>
+            </div>
+
+            <div class="message-box" id="login-message"></div>
+
+            <button type="submit" class="btn-login" id="login-button">
+                <i class="fas fa-sign-in-alt"></i> MASUK
+            </button>
+        </form>
+    </div>
+
+    <div class="modal-overlay" id="success-overlay">
+        <div class="success-box">
+            <i class="fas fa-check-circle"></i>
+            <h3>RipeCoffee cashire</h3>
+            <p>cashire Support By Ahan.</p>
+            <button onclick="window.location.href='main.html'" class="btn-login" style="width: 150px; margin-top: 2rem;">Lanjutkan</button>
+        </div>
+    </div>
+
+
+    <script>
+        const form = document.getElementById('admin-login-form');
+        const container = document.getElementById('login-form-container');
+        const messageBox = document.getElementById('login-message');
+        const successOverlay = document.getElementById('success-overlay');
+
+        // Data Login Sederhana (Hanya untuk demonstrasi)
+        const ADMIN_USERNAME = "admin";
+        const ADMIN_PASSWORD = "admin123"; 
+
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+
+            // Clear previous state
+            messageBox.innerHTML = '';
+            messageBox.classList.remove('error', 'success');
+            container.classList.remove('anim-shake');
+
+            if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+                // --- LOGIN BERHASIL (Success Animation) ---
+                messageBox.innerHTML = 'Berhasil! Mengalihkan...';
+                messageBox.classList.add('success');
+                
+                // Tampilkan animasi pop-in sukses
+                setTimeout(() => {
+                    successOverlay.classList.add('active');
+                    // Biasanya, di sini akan ada pengalihan ke halaman index.html
+                    // Untuk demo, saya menahan pengalihan hingga tombol diklik.
+                    // window.location.href = 'index.html'; 
+                }, 800);
+
+            } else {
+                // --- LOGIN GAGAL (Shake Animation) ---
+                messageBox.innerHTML = 'Username atau Password salah!';
+                messageBox.classList.add('error');
+                
+                // Terapkan animasi Shake pada container
+                container.classList.add('anim-shake');
+                
+                // Hapus animasi setelah selesai untuk memungkinkan re-trigger
+                setTimeout(() => container.classList.remove('anim-shake'), 500);
+
+                // Clear input password untuk keamanan
+                document.getElementById('password').value = ''; 
+                document.getElementById('password').focus();
+            }
+        });
+        
+        // Fungsi untuk menutup overlay sukses (jika perlu)
+        function closeModal() {
+             successOverlay.classList.remove('active');
+        }
+    </script>
+</body>
+</html>

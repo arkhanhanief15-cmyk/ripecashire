@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RipeCoffee POS Mobile</title> 
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* --- CORE VARIABLES --- */
+        :root {
+            --bg-body: #121212;
+            --bg-panel: #1e1e1e;
+            --bg-card: #2a2a2a;
+            --accent: #d4af37; /* Gold */
+            --accent-hover: #b5952f;
+            --text-main: #e0e0e0;
+            --text-muted: #888888;
+            --border: #333333;
+            --danger: #ff4444;
+            --success: #00c851;
+            --info: #2196f3;
+            --font-main: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            --font-serif: "Playfair Display", serif;
+            --nav-size: 80px; /* Lebar Sidebar Desktop */
+            --nav-mobile-height: 60px; /* Tinggi Navbar Mobile */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: var(--font-main);
+            height: 100vh; 
+            overflow: hidden; 
+            display: flex;
+        }
+
+        /* --- ANIMATIONS --- */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); border-color: var(--danger); }
+            75% { transform: translateX(5px); border-color: var(--danger); }
+        }
+        .anim-shake { animation: shake 0.4s ease-in-out; }
+        .btn-animate:active { transform: scale(0.95); transition: transform 0.1s; }
+
+        /* --- TOAST --- */
+        #toast-container {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; width: 90%; max-width: 400px;
+        }
+        .toast {
+            background: var(--bg-panel); color: var(--text-main);
+            padding: 12px 24px; border-radius: 50px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid var(--border);
+            display: flex; align-items: center; gap: 10px;
+            animation: fadeIn 0.3s forwards; pointer-events: auto; width: 100%;
+        }
+        .toast.success { border-color: var(--success); } .toast.success i { color: var(--success); }
+        .toast.error { border-color: var(--danger); } .toast.error i { color: var(--danger); }
+
+        /* --- LAYOUT UTAMA --- */
+        .app-container { 
+            flex: 1; display: grid; grid-template-columns: 1fr; height: 100%; overflow: hidden; position: relative; 
+            margin-left: 0; transition: margin 0.3s;
+        }
+
+        /* SIDEBAR (DESKTOP) */
+        .sidebar-nav {
+            width: var(--nav-size); background: var(--bg-panel); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; align-items: center; padding-top: 2rem; z-index: 100; flex-shrink: 0;
+            height: 100vh;
+        }
+        .nav-btn {
+            width: 50px; height: 50px; border-radius: 14px; background: transparent; border: none;
+            color: var(--text-muted); font-size: 1.4rem; margin-bottom: 1.5rem; cursor: pointer; transition: 0.3s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.05); color: var(--text-main); }
+        .nav-btn.active { background: rgba(212, 175, 55, 0.15); color: var(--accent); box-shadow: 0 0 15px rgba(212,175,55,0.1); }
+
+        .view-section { display: none; height: 100%; animation: fadeIn 0.4s ease; overflow: hidden; }
+        .view-section.active { display: block; }
+        
+        /* --- POS LAYOUT --- */
+        #view-pos { width: 100%; height: 100%; }
+        /* Grid POS Desktop: Menu Kiri, Cart Kanan */
+        #view-pos.active { display: grid; grid-template-columns: 1fr 380px; height: 100%; }
+
+        .menu-section { 
+            padding: 2rem; overflow-y: auto; height: 100%; 
+            padding-bottom: 100px; /* Space for mobile floating bar */
+        }
+
+        .logo { font-family: var(--font-serif); font-size: 2rem; color: var(--accent); margin-bottom: 0.5rem; }
+        
+        .category-tabs { 
+            display: flex; gap: 10px; margin-bottom: 1.5rem; overflow-x: auto; padding-bottom: 5px; 
+            -ms-overflow-style: none; scrollbar-width: none; /* Hide scrollbar */
+        }
+        .category-tabs::-webkit-scrollbar { display: none; }
+
+        .tab {
+            background: transparent; border: 1px solid var(--border); color: var(--text-muted);
+            padding: 0.6rem 1.2rem; border-radius: 50px; cursor: pointer; transition: 0.3s; white-space: nowrap; flex-shrink: 0;
+        }
+        .tab:hover { border-color: var(--accent-hover); color: var(--text-main); }
+        .tab.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: bold; }
+
+        .product-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); 
+            gap: 1rem; padding-bottom: 2rem; 
+        }
+        .product-card {
+            background: var(--bg-card); border-radius: 16px; padding: 1rem; cursor: pointer;
+            text-align: center; border: 1px solid transparent; transition: 0.3s; position: relative;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .product-card:active { transform: scale(0.98); }
+        .product-card:hover { border-color: var(--accent); transform: translateY(-3px); }
+        .product-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 0.8rem; background: #333; }
+        .product-name { font-weight: 600; font-size: 0.9rem; margin-bottom: 0.3rem; word-wrap: break-word; width: 100%; line-height: 1.2;}
+        .product-price { color: var(--accent); font-weight: 700; font-size: 0.9rem; }
+        
+        .badge-warning {
+            position: absolute; top: 10px; right: 10px; background: var(--danger); color: white;
+            font-size: 0.6rem; padding: 2px 6px; border-radius: 4px;
+        }
+
+        /* --- CART SECTION --- */
+        .cart-section {
+            background: var(--bg-panel); display: flex; flex-direction: column; padding: 1.5rem;
+            box-shadow: -5px 0 30px rgba(0,0,0,0.3); z-index: 50; height: 100%; overflow: hidden;
+            border-left: 1px solid var(--border);
+        }
+
+        /* --- MOBILE FLOATING CART BAR (Hidden on Desktop) --- */
+        .mobile-cart-bar {
+            display: none; /* Default hidden */
+            position: fixed; bottom: var(--nav-mobile-height); left: 0; width: 100%;
+            background: var(--bg-card); border-top: 1px solid var(--accent);
+            padding: 10px 20px; z-index: 40;
+            justify-content: space-between; align-items: center;
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+            cursor: pointer;
+        }
+        
+        .mobile-cart-toggle-btn {
+            background: var(--accent); color: #000; border: none; padding: 8px 16px; border-radius: 20px; font-weight: bold;
+        }
+
+        /* --- FORM ELEMENTS --- */
+        .customer-input, .form-input, .form-select { 
+            width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+            color: var(--text-main); padding: 1rem; border-radius: 10px; margin-bottom: 1rem; font-size: 1rem; flex-shrink: 0;
+        }
+        .customer-input:focus, .form-input:focus, .form-select:focus { outline: none; border-color: var(--accent); }
+
+        .cart-items { flex: 1; overflow-y: auto; margin-bottom: 1rem; padding-right: 5px; min-height: 0; }
+        .cart-item {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-card); padding: 0.8rem; border-radius: 12px; margin-bottom: 0.5rem;
+            animation: fadeIn 0.3s ease;
+        }
+        .btn-qty {
+            width: 28px; height: 28px; border-radius: 8px; border: none; background: #444;
+            color: white; cursor: pointer; transition: 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .btn-qty:active { background: var(--accent); color: black; }
+
+        .summary-section { border-top: 1px solid var(--border); padding-top: 1rem; flex-shrink: 0; background: var(--bg-panel); }
+        .summary-row { display: flex; justify-content: space-between; margin-bottom: 0.5rem; color: var(--text-muted); }
+        .total-price { font-size: 1.5rem; font-weight: bold; color: var(--accent); }
+
+        .action-buttons { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 1rem; }
+        .btn-main { padding: 1rem; border-radius: 12px; border: none; font-weight: bold; cursor: pointer; font-size: 1rem; transition: 0.3s; }
+        .btn-save { background: #333; color: var(--text-muted); } .btn-save:hover { background: #444; color: white; }
+        .btn-pay { background: var(--accent); color: #000; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); }
+        .btn-pay:hover { background: #eac44e; transform: translateY(-2px); }
+
+        /* --- REPORT & UTILS --- */
+        .full-page-view { padding: 3rem; overflow-y: auto; height: 100%; padding-bottom: 100px;}
+        .report-toolbar { display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap; }
+        .btn-tool {
+            padding: 0.8rem 1.5rem; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--bg-card); color: var(--text-main); cursor: pointer; display: flex; gap: 8px; align-items: center; flex-grow: 1; justify-content: center;
+        }
+        .btn-tool.danger { color: var(--danger); border-color: rgba(255, 68, 68, 0.3); }
+        .btn-tool.success { background: var(--success); color: #000; font-weight: bold; }
+        .btn-tool.small { padding: 0.5rem 1rem; font-size: 0.8rem; flex-grow: 0;}
+        
+        .report-tabs { display: flex; gap: 10px; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border); margin-top: 2rem; overflow-x: auto;}
+        .report-tab { padding: 10px 15px; cursor: pointer; color: var(--text-muted); border-bottom: 2px solid transparent; white-space: nowrap; margin-bottom: -1px; }
+        .report-tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); }
+
+        .report-summary-grid {
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 1.5rem; margin-top: 1rem;
+        }
+
+        /* Responsive Table */
+        .table-container { width: 100%; overflow-x: auto; margin-top: 2rem; }
+        .data-table { width: 100%; border-collapse: collapse; min-width: 500px; }
+        .data-table th { text-align: left; padding: 1rem; border-bottom: 1px solid var(--border); color: var(--text-muted); white-space: nowrap;}
+        .data-table td { padding: 1rem; border-bottom: 1px solid #333; }
+
+        /* --- MODAL --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: 0.3s; z-index: 1000;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--bg-panel); padding: 2rem; border-radius: 20px;
+            width: 90%; max-width: 450px; 
+            text-align: center; border: 1px solid var(--border);
+            transform: scale(0.9); transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-height: 90vh; overflow-y: auto;
+        }
+        .modal-overlay.active .modal-box { transform: scale(1); }
+
+        .payment-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 2rem; }
+        .pay-option {
+            background: var(--bg-card); border: 1px solid var(--border); padding: 1.5rem;
+            border-radius: 12px; color: white; cursor: pointer; transition: 0.3s;
+        }
+        .pay-option:hover { border-color: var(--accent); background: rgba(212, 175, 55, 0.1); }
+
+        /* STRUK */
+        #receipt-content {
+            background: white; color: #000; padding: 20px;
+            text-align: left; font-family: monospace; font-size: 0.75rem;
+            line-height: 1.3; width: 100%; max-width: 300px; margin: 0 auto; border-radius: 8px;
+        }
+        .receipt-item { display: flex; justify-content: space-between; }
+        .receipt-total { font-weight: bold; font-size: 0.9rem; }
+        .receipt-footer { text-align: center; margin-top: 15px; font-size: 0.65rem; }
+
+        @media print {
+            body > *:not(#modal-print) { display: none !important; } 
+            #modal-print.modal-overlay {
+                position: static !important; opacity: 1 !important; pointer-events: all !important;
+                display: block !important; background: none !important; backdrop-filter: none !important;
+            }
+            #modal-print .modal-box {
+                width: 300px; padding: 0; box-shadow: none; background: white; 
+                border: none; margin: 0; transform: scale(1);
+            }
+            .btn-print { display: none !important; } .modal-box > *:not(#receipt-content) { display: none; } 
+        }
+
+        /* --- PRODUCT MANAGEMENT --- */
+        .product-manager-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+        @media (min-width: 900px) { .product-manager-grid { grid-template-columns: 350px 1fr; } }
+        .product-form-panel { background: var(--bg-panel); padding: 2rem; border-radius: 16px; height: fit-content; }
+        .product-list-panel { max-height: calc(100vh - 10rem); overflow-y: auto; }
+        .product-manager-card {
+            display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-card); padding: 1rem; border-radius: 12px; margin-bottom: 10px; flex-wrap: wrap; gap: 10px;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* ========================================= */
+        /* === MEDIA QUERIES (RESPONSIVE LOGIC) === */
+        /* ========================================= */
+
+        @media (max-width: 900px) {
+            /* Ubah Navigasi ke Bawah (Bottom Bar) */
+            body { flex-direction: column; }
+            
+            .sidebar-nav {
+                width: 100%; height: var(--nav-mobile-height); 
+                position: fixed; bottom: 0; left: 0;
+                flex-direction: row; justify-content: space-around;
+                padding-top: 0; border-right: none; border-top: 1px solid var(--border);
+                background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(10px);
+            }
+            
+            .nav-btn { margin-bottom: 0; width: 100%; height: 100%; border-radius: 0; font-size: 1.2rem; }
+            .nav-btn.active { box-shadow: none; border-top: 2px solid var(--accent); background: transparent; }
+
+            .app-container { 
+                margin-bottom: var(--nav-mobile-height); /* Beri ruang untuk nav bawah */
+            }
+
+            /* Layout POS di Mobile */
+            #view-pos.active {
+                grid-template-columns: 1fr; /* Satu kolom */
+            }
+
+            .menu-section {
+                padding: 1.5rem;
+                padding-bottom: 80px; /* Ruang lebih untuk floating bar */
+            }
+
+            /* Kartu Produk Lebih Kecil */
+            .product-grid {
+                grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+                gap: 0.8rem;
+            }
+            .product-img { width: 60px; height: 60px; }
+            
+            /* Cart Panel jadi Full Screen Overlay (Hidden Default) */
+            #cart-panel {
+                position: fixed; top: 0; left: 0; width: 100%; height: calc(100% - var(--nav-mobile-height));
+                transform: translateY(110%); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+                z-index: 45; border-left: none; padding-bottom: 80px;
+            }
+            #cart-panel.open {
+                transform: translateY(0);
+            }
+
+            /* Tampilkan Tombol Floating di Mobile */
+            .mobile-cart-bar { display: flex; }
+
+            /* Tombol Tutup di Cart Panel Mobile */
+            .mobile-close-cart {
+                display: block !important;
+                width: 100%; padding: 10px; background: transparent; border: none; color: var(--text-muted);
+                margin-bottom: 10px; font-size: 0.9rem; cursor: pointer;
+            }
+
+            /* Halaman Lain */
+            .full-page-view { padding: 1.5rem; padding-bottom: 100px; }
+            .report-summary-grid { grid-template-columns: 1fr; }
+        }
+
+        /* Helper class for mobile cart close button (default hidden desktop) */
+        .mobile-close-cart { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div class="app-container">
+        
+        <div id="view-pos" class="view-section active">
+            <main class="menu-section">
+                <header>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <p style="font-size:0.8rem; color:var(--text-muted)">SUPPOT BY AHAN</p>
+                            <h1 class="logo" style="font-size:1.8rem;">RipeCoffee.</h1>
+                        </div>
+                        <div style="text-align:right;">
+                            <p style="color:var(--text-muted); font-size:0.7rem;" id="date-display">...</p>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="category-tabs">
+                    <button class="tab btn-animate active" onclick="filterMenu('all')">Semua</button>
+                    <button class="tab btn-animate" onclick="filterMenu('coffee')">Coffee</button>
+                    <button class="tab tab-animate" onclick="filterMenu('food')">Food</button>
+                    <button class="tab tab-animate" onclick="filterMenu('extra')">Extra</button>
+                    <button class="tab tab-animate" onclick="filterMenu('non-coffe')">Non-Coffe</button>
+                </div>
+
+                <div class="product-grid" id="product-grid"></div>
+            </main>
+
+            <div class="mobile-cart-bar" id="mobile-cart-bar" onclick="toggleMobileCart(true)">
+                <div>
+                    <span style="font-size:0.8rem; color:var(--text-muted)">Total</span><br>
+                    <span style="font-weight:bold; color:var(--accent); font-size:1.1rem;" id="mobile-cart-total">Rp 0</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <span class="badge" style="background:var(--danger); color:white; border-radius:50%; width:20px; height:20px; text-align:center; font-size:0.8rem; display:none;" id="mobile-cart-count">0</span>
+                    <button class="mobile-cart-toggle-btn">Lihat Pesanan <i class="fas fa-chevron-up"></i></button>
+                </div>
+            </div>
+
+            <aside class="cart-section" id="cart-panel">
+                <button class="mobile-close-cart" onclick="toggleMobileCart(false)">
+                    <i class="fas fa-chevron-down"></i> Tutup Keranjang
+                </button>
+
+                <input type="text" id="customer-name" class="customer-input" placeholder="Nama Pelanggan / Meja..." autocomplete="off">
+                <div class="cart-items" id="cart-items"></div>
+                <div class="summary-section">
+                    <div class="summary-row"><span>Total Qty</span> <span id="sum-qty">0</span></div>
+                    <div class="summary-row" style="align-items: center;">
+                        <span>Total Tagihan</span> <span class="total-price" id="sum-total">Rp 0</span>
+                    </div>
+                    <div class="action-buttons">
+                        <button class="btn-main btn-save btn-animate" onclick="saveOrder()">Simpan</button>
+                        <button class="btn-main btn-pay btn-animate" onclick="openPayment()">Bayar</button>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <div id="view-saved" class="view-section full-page-view">
+            <h2 style="font-family: var(--font-serif); margin-bottom: 1rem;">Pesanan Tertunda</h2>
+            <div id="saved-list" style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));"></div>
+        </div>
+
+        <div id="view-report" class="view-section full-page-view">
+            <h2 style="font-family: var(--font-serif);">Laporan & Laba Rugi</h2>
+            <div class="report-toolbar">
+                <button class="btn-tool btn-animate" onclick="downloadCSV()">
+                    <i class="fas fa-file-excel"></i> Excel
+                </button>
+                <button class="btn-tool danger btn-animate" onclick="resetData()">
+                    <i class="fas fa-trash-alt"></i> Reset
+                </button>
+            </div>
+
+            <div class="report-tabs">
+                <div id="tab-summary" class="report-tab active btn-animate" onclick="switchReport('summary')">Ringkasan</div>
+                <div id="tab-products" class="report-tab btn-animate" onclick="switchReport('products')">Produk</div>
+            </div>
+
+            <div id="report-summary-content">
+                <div class="report-summary-grid" style="margin-bottom: 1.5rem;">
+                    <div class="product-card" style="text-align: left; cursor: default; background: rgba(255, 255, 255, 0.05);">
+                        <small style="color:var(--text-muted)">OMZET</small>
+                        <div style="font-size: 1.5rem; color:var(--text-main); font-weight:bold;" id="rep-revenue">Rp 0</div>
+                    </div>
+                    <div class="product-card" style="text-align: left; cursor: default;">
+                        <small style="color:var(--text-muted)">TOTAL HPP</small>
+                        <div style="font-size: 1.5rem; color:var(--danger); font-weight:bold;" id="rep-cogs">Rp 0</div>
+                    </div>
+                    <div class="product-card" style="text-align: left; cursor: default; border-color: var(--success);">
+                        <small style="color:var(--success)">PROFIT BERSIH</small>
+                        <div style="font-size: 1.5rem; color:var(--success); font-weight:bold;" id="rep-profit">Rp 0</div>
+                    </div>
+                </div>
+
+                <div class="report-summary-grid" style="margin-bottom: 1.5rem;">
+                    <div class="product-card" style="text-align: left; cursor: default; background: rgba(33, 150, 243, 0.1); border-color: var(--info);">
+                        <small style="color:var(--info)">MODAL KASIR</small>
+                        <div style="font-size: 1.5rem; font-weight:bold; color:var(--info);" id="rep-start-cash">Rp 0</div>
+                        <button class="btn-tool small btn-animate" onclick="openStartCashModal()" style="margin-top: 10px; border-color: var(--info); width:auto;"><i class="fas fa-edit"></i> Edit</button>
+                    </div>
+                    <div class="product-card" style="text-align: left; cursor: default; background: rgba(0, 200, 81, 0.1); border-color: var(--success);">
+                        <small style="color:var(--success)">CASH AKHIR</small>
+                        <div style="font-size: 1.5rem; font-weight:bold; color:var(--success);" id="rep-end-cash">Rp 0</div>
+                    </div>
+                </div>
+
+                <div class="report-summary-grid">
+                    <div class="product-card" style="text-align: left; cursor: default; background: rgba(0, 200, 81, 0.1);">
+                        <small style="color:var(--success)">VIA CASH</small>
+                        <div style="font-size: 1.3rem; font-weight:bold;" id="rep-cash">Rp 0</div>
+                    </div>
+                    <div class="product-card" style="text-align: left; cursor: default; background: rgba(33, 150, 243, 0.1);">
+                        <small style="color:var(--info)">VIA QRIS</small>
+                        <div style="font-size: 1.3rem; font-weight:bold;" id="rep-qris">Rp 0</div>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr><th>Jam</th><th>Pelanggan</th><th>Metode</th><th style="text-align:right">Total</th></tr></thead>
+                        <tbody id="report-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="report-products-content" style="display:none;">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead><tr><th>Produk</th><th style="text-align:right">Qty</th><th style="text-align:right">Pendapatan</th><th style="text-align:right">HPP</th><th style="text-align:right">Profit</th></tr></thead>
+                        <tbody id="product-sales-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-product" class="view-section full-page-view">
+            <h2 style="font-family: var(--font-serif); margin-bottom: 1rem;">Produk</h2>
+            <div class="product-manager-grid">
+                <div class="product-form-panel">
+                    <h3 id="form-title">Tambah Produk</h3>
+                    <input type="hidden" id="product-id">
+                    
+                    <input type="text" id="product-name" class="form-input" placeholder="Nama Produk">
+                    <input type="number" id="product-price" class="form-input" placeholder="Harga Jual (Rp)">
+                    <input type="number" id="product-cost" class="form-input" placeholder="Harga Modal / HPP (Rp)" style="border-color: var(--info);">
+                    
+                    <select id="product-category" class="form-select">
+                        <option value="" style="color: black;">Pilih Kategori</option>
+                        <option value="coffee" style="color: black;">Coffee</option>
+                        <option value="non-coffe" style="color: black;">Non-Coffe</option>
+                        <option value="food" style="color: black;">Food</option>
+                        <option value="extra" style="color: black;">Extra</option>
+                    </select>
+
+                    <input type="text" id="product-img" class="form-input" placeholder="URL Gambar">
+
+                    <button class="btn-main btn-tool success btn-animate" onclick="saveNewProduct()" style="width: 100%; justify-content: center; margin-bottom: 10px;">
+                        <i class="fas fa-save"></i> Simpan
+                    </button>
+                    <button class="btn-main btn-tool btn-animate" onclick="resetForm()" style="width: 100%; justify-content: center; background: #444;">
+                        <i class="fas fa-sync"></i> Reset
+                    </button>
+                </div>
+                <div class="product-list-panel">
+                    <div id="current-product-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <nav class="sidebar-nav">
+        <button id="nav-pos" class="nav-btn btn-animate active" onclick="switchView('pos')" title="Kasir"><i class="fas fa-cash-register"></i></button>
+        <button id="nav-saved" class="nav-btn btn-animate" onclick="switchView('saved')" title="Pending"><i class="fas fa-clock"></i></button>
+        <button id="nav-report" class="nav-btn btn-animate" onclick="switchView('report')" title="Laporan"><i class="fas fa-chart-pie"></i></button>
+        <button id="nav-product" class="nav-btn btn-animate" onclick="switchView('product')" title="Manajemen Produk"><i class="fas fa-mug-hot"></i></button>
+    </nav>
+
+    <div class="modal-overlay" id="modal-payment">
+        <div class="modal-box">
+            <h3>Pembayaran</h3>
+            <p style="color:var(--text-muted); margin-bottom: 1rem;">Total: <span id="pay-modal-total" style="color:var(--accent); font-size:1.2rem;">Rp 0</span></p>
+
+            <div id="cash-payment-section" style="margin-bottom: 1.5rem; text-align: left;">
+                <label style="font-weight: bold; margin-bottom: 5px; display: block;">Uang Cash:</label>
+                <input type="number" id="amount-paid" class="form-input" placeholder="0" oninput="calculateChange()" style="margin-bottom: 10px; font-size: 1.5rem; text-align: right;">
+                
+                <div style="display: flex; gap: 8px; justify-content: flex-start; margin-bottom: 10px; flex-wrap: wrap;">
+                    <button class="btn-tool small btn-animate" onclick="setCash(20000)">20k</button>
+                    <button class="btn-tool small btn-animate" onclick="setCash(50000)">50k</button>
+                    <button class="btn-tool small btn-animate" onclick="setCash(100000)">100k</button>
+                    <button class="btn-tool small btn-animate" onclick="setCash('exact')">Pas</button>
+                </div>
+
+                <div class="summary-row" style="margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 10px; align-items: center;">
+                    <span style="font-size: 1.1rem; font-weight: bold; color:var(--text-main)">Kembalian</span> 
+                    <span id="pay-modal-change" class="total-price" style="font-size: 1.3rem; color:var(--success);">Rp 0</span>
+                </div>
+            </div>
+            
+            <div class="payment-grid" style="margin-top: 1rem;">
+                <button class="btn-main btn-pay btn-animate" id="btn-pay-cash" onclick="processPayment('CASH')" disabled style="background: var(--success); color:#000; opacity: 0.5;">
+                    <i class="fas fa-money-bill-wave"></i> CASH
+                </button>
+                <button class="btn-main btn-pay btn-animate" onclick="processPayment('QRIS')" style="background: var(--info); color:#000;">
+                    <i class="fas fa-qrcode"></i> QRIS
+                </button>
+            </div>
+            <button onclick="closeModal('modal-payment')" style="margin-top:2rem; background:none; border:none; color:var(--text-muted); cursor:pointer;">Batal</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-start-cash">
+        <div class="modal-box" style="max-width: 400px;">
+            <h3>Set Modal Kasir</h3>
+            <div style="margin-bottom: 1.5rem; text-align: left; margin-top: 1rem;">
+                <input type="number" id="start-cash-input" class="form-input" placeholder="0" style="margin-bottom: 10px; font-size: 1.5rem; text-align: right;">
+            </div>
+            <button class="btn-main btn-pay btn-animate" onclick="setStartingCash()" style="width: 100%;"><i class="fas fa-save"></i> SIMPAN</button>
+            <button onclick="closeModal('modal-start-cash')" style="margin-top:2rem; background:none; border:none; color:var(--text-muted); cursor:pointer;">Batal</button>
+        </div>
+    </div>
+    
+    <div class="modal-overlay" id="modal-print">
+        <div class="modal-box" style="max-width:340px;">
+            <div id="receipt-content"></div>
+            <button class="btn-main btn-pay btn-animate btn-print" onclick="printReceipt()" style="width: 100%; margin-top: 1rem;">
+                <i class="fas fa-print"></i> CETAK
+            </button>
+            <button onclick="closeModal('modal-print')" class="btn-print" style="margin-top:0.5rem; background:none; border:none; color:var(--text-muted); cursor:pointer;">Selesai</button>
+        </div>
+    </div>
+
+    <script>
+        // --- DATA ---
+        let defaultProducts = [
+            { id: 1, name: "The Ripe One", price: 15000, cost: 8000, category: "coffee", img: "" },
+            { id: 2, name: "Americano", price: 12000, cost: 5000, category: "coffee", img: "" },
+            { id: 3, name: "Long Black", price: 14000, cost: 6000, category: "coffee", img: "" },
+            { id: 4, name: "Dirty Matcha", price: 18000, cost: 9000, category: "coffee", img: "" },
+            { id: 5, name: "Moccacino", price: 17000, cost: 8500, category: "coffee", img: "" },
+            { id: 6, name: "Butterscoth", price: 16000, cost: 7000, category: "coffee", img: "" },
+            { id: 7, name: "Salted Caramel Latte", price: 16000, cost: 7000, category: "coffee", img: "" },
+            { id: 8, name: "Matcha Latte", price: 17000, cost: 8000, category: "non-coffe", img: "" },
+            { id: 9, name: "Dark Chocolate", price: 17000, cost: 8000, category: "non-coffe", img: "" },
+            { id: 10, name: "Roti Bakar Keju", price: 12000, cost: 6000, category: "food", img: "" },
+            { id: 11, name: "Roti Bakar Coklat", price: 12000, cost: 6000, category: "food", img: "" },
+            { id: 12, name: "Indomie Telur", price: 12000, cost: 5000, category: "food", img: "" },
+            { id: 13, name: "Indomie Double", price: 14000, cost: 7000, category: "food", img: "" },
+            { id: 14, name: "Kentang Goreng", price: 10000, cost: 4000, category: "food", img: "" },
+            { id: 15, name: "Telur Rebus", price: 5000, cost: 2500, category: "extra", img: "" },
+        ];
+        
+        let products = JSON.parse(localStorage.getItem('RipeCoffee_products'));
+        if (!products || products.length === 0) {
+            products = defaultProducts;
+            localStorage.setItem('RipeCoffee_products', JSON.stringify(products));
+        }
+
+        let cart = [];
+        let savedOrders = JSON.parse(localStorage.getItem('RipeCoffee_saved')) || [];
+        let transactions = JSON.parse(localStorage.getItem('RipeCoffee_tx')) || [];
+        let currentTotal = 0;
+        let startingCash = JSON.parse(localStorage.getItem('RipeCoffee_start_cash')) || { date: '', amount: 0 };
+
+        // --- INIT ---
+        window.onload = () => {
+            const today = new Date().toLocaleDateString('id-ID');
+            if (startingCash.date !== today) {
+                startingCash = { date: today, amount: 0 };
+                localStorage.setItem('RipeCoffee_start_cash', JSON.stringify(startingCash));
+            }
+            renderProducts('all');
+            document.getElementById('date-display').innerText = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+            renderReport('summary');
+        };
+        
+        function updateProductStorage() { localStorage.setItem('RipeCoffee_products', JSON.stringify(products)); }
+
+        // --- UI FUNCTIONS ---
+        function switchView(view) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+            document.getElementById(`view-${view}`).classList.add('active');
+            document.getElementById(`nav-${view}`).classList.add('active'); 
+            
+            // Tutup cart mobile jika pindah view
+            toggleMobileCart(false);
+
+            if(view === 'saved') renderSaved();
+            if(view === 'report') renderReport('summary');
+            if(view === 'product') renderProductManagement();
+        }
+        
+        // FUNGSI BARU: Toggle Cart Mobile
+        function toggleMobileCart(show) {
+            const panel = document.getElementById('cart-panel');
+            if (show) {
+                panel.classList.add('open');
+            } else {
+                panel.classList.remove('open');
+            }
+        }
+
+        function showToast(msg, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const el = document.createElement('div');
+            el.className = `toast ${type}`;
+            el.innerHTML = `<i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> <span>${msg}</span>`;
+            container.appendChild(el);
+            setTimeout(() => el.remove(), 3000);
+        }
+
+        function formatRupiah(num) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
+        }
+
+        // --- POS FUNCTIONS ---
+        function renderProducts(cat) {
+            products = JSON.parse(localStorage.getItem('RipeCoffee_products')) || defaultProducts;
+            const grid = document.getElementById('product-grid');
+            grid.innerHTML = '';
+            const filtered = cat === 'all' ? products : products.filter(p => p.category === cat);
+            
+            if (filtered.length === 0) grid.innerHTML = '<p style="color:var(--text-muted); padding: 2rem;">Kosong.</p>';
+            
+            filtered.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'product-card btn-animate';
+                card.onclick = () => addToCart(p.id);
+                const hppWarning = (!p.cost || p.cost === 0) ? `<span class="badge-warning">! HPP</span>` : '';
+                
+                card.innerHTML = `
+                    ${hppWarning}
+                    <img src="${p.img || 'https://via.placeholder.com/80/2a2a2a/888888?text=Coffee'}" alt="${p.name}" class="product-img" loading="lazy"> 
+                    <div class="product-name">${p.name}</div>
+                    <div class="product-price">${formatRupiah(p.price)}</div>
+                `;
+                grid.appendChild(card);
+            });
+            document.querySelectorAll('.tab').forEach(t => {
+                t.classList.remove('active');
+                if(t.innerText.toLowerCase().includes(cat) || (cat==='all' && t.innerText.toLowerCase().includes('semua'))) t.classList.add('active');
+            });
+        }
+
+        function filterMenu(c) { renderProducts(c); }
+
+        function addToCart(id) {
+            products = JSON.parse(localStorage.getItem('RipeCoffee_products')) || defaultProducts;
+            const p = products.find(x => x.id === id);
+            if (!p) return;
+            const exist = cart.find(x => x.id === id);
+            if(exist) exist.qty++;
+            else cart.push({...p, qty: 1});
+            renderCart();
+            showToast(`${p.name} +1`);
+        }
+
+        function renderCart() {
+            const container = document.getElementById('cart-items');
+            container.innerHTML = '';
+            let total = 0, qty = 0;
+            if(cart.length === 0) container.innerHTML = `<div style="text-align:center; color:var(--text-muted); margin-top:2rem;">Keranjang Kosong</div>`;
+            cart.forEach(item => {
+                total += item.price * item.qty;
+                qty += item.qty;
+                const row = document.createElement('div');
+                row.className = 'cart-item';
+                row.innerHTML = `
+                    <div style="flex:1; padding-right:10px;">
+                        <div style="font-weight:bold; font-size:0.9rem;">${item.name}</div>
+                        <small style="color:var(--accent)">${formatRupiah(item.price)}</small>
+                    </div>
+                    <div style="display:flex; gap:5px; align-items:center;">
+                        <button class="btn-qty" onclick="changeQty(${item.id}, -1)">-</button>
+                        <span style="width:20px; text-align:center; font-size:0.9rem;">${item.qty}</span>
+                        <button class="btn-qty" onclick="changeQty(${item.id}, 1)">+</button>
+                    </div>
+                `;
+                container.appendChild(row);
+            });
+            document.getElementById('sum-qty').innerText = qty;
+            document.getElementById('sum-total').innerText = formatRupiah(total);
+            
+            // Update Mobile Floating Bar
+            document.getElementById('mobile-cart-total').innerText = formatRupiah(total);
+            const badge = document.getElementById('mobile-cart-count');
+            if(qty > 0) { badge.style.display = 'block'; badge.innerText = qty; } 
+            else { badge.style.display = 'none'; }
+        }
+
+        function changeQty(id, delta) {
+            const item = cart.find(x => x.id === id);
+            if(item) {
+                item.qty += delta;
+                if(item.qty <= 0) cart = cart.filter(x => x.id !== id);
+                renderCart();
+            }
+        }
+
+        function saveOrder() {
+            if(cart.length === 0) return showToast('Keranjang kosong', 'error');
+            const name = document.getElementById('customer-name').value.trim() || 'Pelanggan';
+            savedOrders.push({
+                id: Date.now(), name: name, items: [...cart],
+                total: cart.reduce((a,b) => a + (b.price * b.qty), 0),
+                time: new Date().toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'})
+            });
+            localStorage.setItem('RipeCoffee_saved', JSON.stringify(savedOrders));
+            cart = []; document.getElementById('customer-name').value = '';
+            renderCart(); toggleMobileCart(false); showToast(`Pesanan disimpan`);
+        }
+        
+        function openPayment() {
+            if(cart.length === 0) return showToast('Keranjang kosong', 'error');
+            currentTotal = cart.reduce((a,b) => a + (b.price * b.qty), 0);
+            
+            document.getElementById('pay-modal-total').innerText = formatRupiah(currentTotal);
+            document.getElementById('amount-paid').value = '';
+            document.getElementById('pay-modal-change').innerText = formatRupiah(0);
+            
+            const btnPayCash = document.getElementById('btn-pay-cash');
+            btnPayCash.disabled = true; btnPayCash.style.opacity = '0.5';
+            btnPayCash.innerHTML = `<i class="fas fa-money-bill-wave"></i> CASH`;
+
+            document.getElementById('modal-payment').classList.add('active');
+        }
+
+        function setCash(amount) {
+            const amountPaidInput = document.getElementById('amount-paid');
+            amountPaidInput.value = (amount === 'exact') ? currentTotal : amount;
+            calculateChange(); amountPaidInput.focus();
+        }
+
+        function calculateChange() {
+            const amountPaid = parseInt(document.getElementById('amount-paid').value) || 0;
+            const changeAmount = amountPaid - currentTotal;
+            const btnPayCash = document.getElementById('btn-pay-cash');
+
+            document.getElementById('pay-modal-change').innerText = formatRupiah(changeAmount);
+            document.getElementById('pay-modal-change').style.color = changeAmount >= 0 ? 'var(--success)' : 'var(--danger)';
+
+            if (changeAmount >= 0) {
+                btnPayCash.disabled = false; btnPayCash.style.opacity = '1';
+                btnPayCash.innerHTML = `<i class="fas fa-money-bill-wave"></i> BAYAR (${formatRupiah(amountPaid)})`;
+            } else {
+                btnPayCash.disabled = true; btnPayCash.style.opacity = '0.5';
+                btnPayCash.innerHTML = `KURANG!`;
+            }
+        }
+
+        function processPayment(method) {
+            const name = document.getElementById('customer-name').value.trim() || 'Guest';
+            let total = currentTotal;
+            let amountPaid = total;
+            let change = 0;
+
+            if (method === 'CASH') {
+                amountPaid = parseInt(document.getElementById('amount-paid').value) || 0;
+                if (amountPaid < total) return showToast('Uang kurang!', 'error');
+                change = amountPaid - total;
+            }
+
+            const totalCost = cart.reduce((a,b) => a + ((b.cost || 0) * b.qty), 0); 
+
+            const newTx = {
+                id: Date.now(), 
+                date: new Date().toLocaleDateString('id-ID'),
+                time: new Date().toLocaleTimeString('id-ID'), 
+                customer: name, items: [...cart], total: total, totalCost: totalCost,
+                method: method, amountPaid: amountPaid, change: change
+            };
+            transactions.push(newTx);
+            localStorage.setItem('RipeCoffee_tx', JSON.stringify(transactions));
+            closeModal('modal-payment');
+            toggleMobileCart(false); // Tutup cart mobile
+            openPrintModal(newTx);
+            cart = []; document.getElementById('customer-name').value = '';
+            renderCart(); 
+        }
+
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+        function openStartCashModal() {
+            document.getElementById('start-cash-input').value = startingCash.amount;
+            document.getElementById('modal-start-cash').classList.add('active');
+        }
+
+        function setStartingCash() {
+            const amount = parseInt(document.getElementById('start-cash-input').value) || 0;
+            const today = new Date().toLocaleDateString('id-ID');
+            startingCash = { date: today, amount: amount };
+            localStorage.setItem('RipeCoffee_start_cash', JSON.stringify(startingCash));
+            closeModal('modal-start-cash'); renderReportSummary(); showToast('Modal tersimpan.');
+        }
+
+        function openPrintModal(tx) {
+            const receiptEl = document.getElementById('receipt-content');
+            let itemsHtml = tx.items.map(i => `<div class="receipt-item"><span>${i.qty}x ${i.name}</span><span>${formatRupiah(i.price * i.qty)}</span></div>`).join('');
+            let payHtml = (tx.method === 'CASH') 
+                ? `<div class="receipt-item"><span>Bayar:</span><span>${formatRupiah(tx.amountPaid)}</span></div><div class="receipt-item receipt-total"><span>KEMBALI</span><span>${formatRupiah(tx.change)}</span></div>` 
+                : `<div class="receipt-item"><span>Metode:</span><span>${tx.method}</span></div>`;
+
+            receiptEl.innerHTML = `
+                <div style="text-align:center;"><h3 style="font-family: var(--font-serif); color:#000;">RipeCoffee</h3><p style="font-size:0.6rem;">Jl. Ecopolis Citra Raya</p></div><hr>
+                <div style="font-size:0.7rem;"><p>${tx.date} ${tx.time}</p><p>#${tx.id}</p><p>Cust: ${tx.customer}</p></div><hr>
+                ${itemsHtml}<hr>
+                <div class="receipt-item receipt-total"><span>TOTAL</span><span>${formatRupiah(tx.total)}</span></div>
+                <hr>${payHtml}
+                <div class="receipt-footer">Terima Kasih!</div>
+            `;
+            document.getElementById('modal-print').classList.add('active');
+        }
+        function printReceipt() { window.print(); }
+        
+        // --- SAVED ORDERS ---
+        function renderSaved() {
+            const container = document.getElementById('saved-list');
+            container.innerHTML = '';
+            if(savedOrders.length === 0) container.innerHTML = '<p style="color:var(--text-muted)">Tidak ada data.</p>';
+            savedOrders.forEach((order, idx) => {
+                container.innerHTML += `
+                    <div class="product-card" style="text-align:left; display:flex; justify-content:space-between; align-items:center;">
+                        <div><h3>${order.name}</h3><div style="color:var(--accent); font-weight:bold; margin-top:5px;">${formatRupiah(order.total)}</div><small style="color:var(--text-muted)">${order.time} • ${order.items.length} Menu</small></div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn-tool small btn-animate" onclick="restoreOrder(${idx})"><i class="fas fa-play"></i></button>
+                            <button class="btn-tool small danger btn-animate" onclick="deleteSavedOrder(${idx})"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                    </div>`;
+            });
+        }
+        function restoreOrder(idx) {
+            if(cart.length > 0 && !confirm("Timpa pesanan saat ini?")) return;
+            cart = savedOrders[idx].items;
+            document.getElementById('customer-name').value = savedOrders[idx].name;
+            savedOrders.splice(idx, 1);
+            localStorage.setItem('RipeCoffee_saved', JSON.stringify(savedOrders));
+            switchView('pos'); renderCart(); 
+        }
+        function deleteSavedOrder(idx) {
+            if (confirm(`Hapus pesanan?`)) {
+                savedOrders.splice(idx, 1); localStorage.setItem('RipeCoffee_saved', JSON.stringify(savedOrders));
+                renderSaved(); 
+            }
+        }
+
+        // --- PRODUCT MANAGER ---
+        function renderProductManagement() {
+            products = JSON.parse(localStorage.getItem('RipeCoffee_products')) || defaultProducts;
+            const container = document.getElementById('current-product-list');
+            container.innerHTML = '';
+            products.forEach(p => {
+                container.innerHTML += `
+                    <div class="product-manager-card">
+                        <div style="text-align: left;">
+                            <h4 style="margin-bottom: 2px;">${p.name}</h4>
+                            <small style="color: var(--accent);">Jual: ${formatRupiah(p.price)}</small>
+                            <small style="color: var(--info); margin-left:5px;">Modal: ${p.cost ? formatRupiah(p.cost) : '-'}</small>
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn-tool small btn-animate" onclick="editProduct(${p.id})"><i class="fas fa-edit"></i></button>
+                            <button class="btn-tool small danger btn-animate" onclick="deleteProduct(${p.id})"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                    </div>`;
+            });
+            resetForm();
+        }
+        
+        function saveNewProduct() {
+            const id = document.getElementById('product-id').value;
+            const name = document.getElementById('product-name').value.trim();
+            const price = parseInt(document.getElementById('product-price').value);
+            const cost = parseInt(document.getElementById('product-cost').value) || 0;
+            const category = document.getElementById('product-category').value;
+            const img = document.getElementById('product-img').value.trim();
+            
+            if (!name || !price || !category) return showToast('Lengkapi data!', 'error');
+            
+            const newProduct = { id: id ? parseInt(id) : Date.now(), name, price, cost, category, img: img || '' };
+
+            if (id) {
+                const index = products.findIndex(p => p.id === parseInt(id));
+                if (index !== -1) products[index] = newProduct;
+            } else {
+                products.push(newProduct);
+            }
+            updateProductStorage(); renderProductManagement(); renderProducts('all'); resetForm(); showToast('Tersimpan');
+        }
+
+        function editProduct(id) {
+            const product = products.find(p => p.id === id);
+            if (!product) return;
+            document.getElementById('form-title').innerText = `Edit: ${product.name}`;
+            document.getElementById('product-id').value = product.id;
+            document.getElementById('product-name').value = product.name;
+            document.getElementById('product-price').value = product.price;
+            document.getElementById('product-cost').value = product.cost || '';
+            document.getElementById('product-category').value = product.category;
+            document.getElementById('product-img').value = product.img;
+        }
+
+        function deleteProduct(id) {
+            if (confirm(`Hapus produk?`)) {
+                const index = products.findIndex(p => p.id === id);
+                if (index !== -1) products.splice(index, 1);
+                updateProductStorage(); renderProductManagement(); renderProducts('all'); 
+            }
+        }
+        function resetForm() {
+            document.getElementById('form-title').innerText = 'Tambah Produk';
+            document.getElementById('product-id').value = ''; document.getElementById('product-name').value = '';
+            document.getElementById('product-price').value = ''; document.getElementById('product-cost').value = ''; 
+            document.getElementById('product-category').value = ''; document.getElementById('product-img').value = '';
+        }
+
+        // --- REPORT LOGIC ---
+        function switchReport(type) {
+            document.querySelectorAll('.report-tab').forEach(e => e.classList.remove('active'));
+            document.getElementById(`tab-${type}`).classList.add('active');
+            document.getElementById('report-summary-content').style.display = (type === 'summary') ? 'block' : 'none';
+            document.getElementById('report-products-content').style.display = (type === 'products') ? 'block' : 'none';
+            if(type==='summary') renderReportSummary(); else renderProductSales();
+        }
+        function renderReport(t) { switchReport(t); }
+
+        function renderReportSummary() {
+            const today = new Date().toLocaleDateString('id-ID');
+            const data = transactions.filter(t => t.date === today);
+            let revenue = 0, cogs = 0, cashTotal = 0, qrisTotal = 0;
+            const currentStartingCash = (startingCash.date === today) ? startingCash.amount : 0;
+            
+            const tbody = document.getElementById('report-table-body'); 
+            tbody.innerHTML = '';
+            
+            data.slice().reverse().forEach(t => {
+                revenue += t.total; cogs += (t.totalCost || 0);
+                if (t.method === 'CASH') cashTotal += t.total; else qrisTotal += t.total;
+                tbody.innerHTML += `<tr><td>${t.time}</td><td>${t.customer}</td><td>${t.method}</td><td style="text-align:right;">${formatRupiah(t.total)}</td></tr>`;
+            });
+
+            if(data.length === 0) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Nihil.</td></tr>';
+
+            document.getElementById('rep-revenue').innerText = formatRupiah(revenue);
+            document.getElementById('rep-cogs').innerText = formatRupiah(cogs); 
+            document.getElementById('rep-profit').innerText = formatRupiah(revenue - cogs); 
+            document.getElementById('rep-start-cash').innerText = formatRupiah(currentStartingCash);
+            document.getElementById('rep-end-cash').innerText = formatRupiah(currentStartingCash + cashTotal);
+            document.getElementById('rep-cash').innerText = formatRupiah(cashTotal);
+            document.getElementById('rep-qris').innerText = formatRupiah(qrisTotal); 
+        }
+
+        function renderProductSales() {
+            const today = new Date().toLocaleDateString('id-ID');
+            const data = transactions.filter(t => t.date === today);
+            const sales = {};
+            data.forEach(t => t.items.forEach(i => {
+                if(!sales[i.id]) sales[i.id] = { name: i.name, qty: 0, revenue: 0, cost: 0 };
+                sales[i.id].qty += i.qty; sales[i.id].revenue += (i.qty * i.price); sales[i.id].cost += (i.qty * (i.cost||0)); 
+            }));
+            const tbody = document.getElementById('product-sales-table-body'); tbody.innerHTML = '';
+            Object.values(sales).sort((a,b) => b.qty - a.qty).forEach(p => {
+                tbody.innerHTML += `<tr><td>${p.name}</td><td style="text-align:right;">${p.qty}</td><td style="text-align:right;">${formatRupiah(p.revenue)}</td><td style="text-align:right;color:var(--danger)">${formatRupiah(p.cost)}</td><td style="text-align:right;color:var(--success)">${formatRupiah(p.revenue-p.cost)}</td></tr>`;
+            });
+        }
+
+        function downloadCSV() {
+            if(transactions.length === 0) return showToast('Data kosong.', 'error');
+            const header = ["Tanggal","Waktu","Pelanggan","Total", "Modal", "Untung", "Metode","Item"];
+            const rows = transactions.map(t => [t.date, t.time, t.customer, t.total, t.totalCost||0, t.total-(t.totalCost||0), t.method, t.items.map(i=>`${i.name}(${i.qty})`).join(';')].map(s=>`"${s}"`).join(','));
+            const csv = "data:application/vnd.ms-excel," + [header.join(','), ...rows].join('\n');
+            const link = document.createElement("a"); link.href = encodeURI(csv);
+            link.download = `Laporan_RipeCoffee.xls`; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+        }
+
+        function resetData() {
+            if (confirm("HAPUS DATA?")) {
+                transactions = []; localStorage.removeItem('RipeCoffee_tx');
+                renderReportSummary(); showToast('Data direset.');
+            }
+        }
+    </script>
+</body>
+</html>
